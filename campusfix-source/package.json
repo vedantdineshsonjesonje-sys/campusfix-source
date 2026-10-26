@@ -1,0 +1,15 @@
+{
+  "name": "campusfix-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A standalone CampusFix campus issue tracker demo.",
+  "scripts": {
+    "start": "node server.cjs",
+    "test": "node --test tests/data.test.cjs tests/server.test.cjs",
+    "check": "node --check app.js && node --check data.js && node --check server.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
