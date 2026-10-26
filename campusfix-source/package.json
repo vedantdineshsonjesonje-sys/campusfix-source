@@ -1,12 +1,12 @@
 {
   "name": "campusfix-demo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "A standalone CampusFix campus issue tracker demo.",
   "scripts": {
     "start": "node server.cjs",
-    "test": "node --test tests/data.test.cjs tests/server.test.cjs",
-    "check": "node --check app.js && node --check data.js && node --check server.cjs"
+    "test": "node --test tests/data.test.cjs tests/server.test.cjs tests/ai.test.cjs",
+    "check": "node --check app.js && node --check data.js && node --check server.cjs && node --check ai-core.js && node --check ai-client.js && node --check ai-worker.mjs"
   },
   "engines": {
     "node": ">=18"

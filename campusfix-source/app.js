@@ -14,6 +14,8 @@
   let route = 'feed';
   let filters = defaultFilters();
   let nextRouteFilters = null;
+  let reportAIRequest = 0;
+  let detailAIRequest = 0;
   let storageAvailable = true;
 
   function defaultFilters() { return { query: '', category: 'All categories', status: 'Any status', sort: 'votes' }; }
@@ -127,7 +129,10 @@
     photo = null;
     photoLoading = false;
     photoVersion++;
-    main.innerHTML = '<div class="report-wrap"><div class="page-heading"><p class="eyebrow">See it. Report it. Track it.</p><h1>Report an issue</h1><p>Tell us what’s wrong. A little detail helps the right team get it fixed.</p></div><form id="report-form" class="panel" novalidate>' + fieldHTML('title', 'Title', '<input id="title" name="title" placeholder="e.g. Broken power socket" maxlength="100" minlength="3" required>') + fieldHTML('location', 'Location', '<input id="location" name="location" placeholder="e.g. Central Library, 1st floor, desk 12" maxlength="120" required>') + fieldHTML('description', 'Description', '<textarea id="description" name="description" placeholder="What’s happening? Since when?" maxlength="2000" minlength="10" required></textarea>') + '<section class="triage" aria-label="Category and duplicate helper"><div class="triage-heading"><strong>' + icon('sparkles', 20) + 'Smart triage</strong><button class="btn btn-small" type="button" data-action="triage">' + icon('sparkles', 14) + 'Suggest category & check duplicates</button></div><p class="triage-note">Offline keyword suggestions. Review the category before submitting.</p><div id="triage-result" role="status"></div></section>' + fieldHTML('category', 'Category', '<select id="category" name="category" required>' + options(D.CATEGORIES, '', 'Select a category…') + '</select>') + '<div class="field"><span class="field-label">Photo (optional)</span><label class="upload-box" for="photo">' + icon('photo', 26) + '<span>Tap to add a photo</span><small>JPG, PNG, WEBP or GIF · up to 2 MB</small><input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Add a photo" aria-describedby="photo-error"></label><p id="photo-error" class="error-text" role="alert"></p><div id="photo-preview" class="photo-preview" hidden></div></div><div class="form-footer"><p>Reports are public within this browser’s demo. Avoid adding personal information.</p><button class="btn btn-primary" type="submit">' + icon('plus', 18) + 'Submit report</button></div></form></div>';
+    main.innerHTML = '<div class="report-wrap"><div class="page-heading"><p class="eyebrow">See it. Report it. Track it.</p><h1>Report an issue</h1><p>Tell us what’s wrong. A little detail helps the right team get it fixed.</p></div><form id="report-form" class="panel" novalidate>' + fieldHTML('title', 'Title', '<input id="title" name="title" placeholder="e.g. Broken power socket" maxlength="100" minlength="3" required>') + fieldHTML('location', 'Location', '<input id="location" name="location" placeholder="e.g. Central Library, 1st floor, desk 12" maxlength="120" required>') + fieldHTML('description', 'Description', '<textarea id="description" name="description" placeholder="What’s happening? Since when?" maxlength="2000" minlength="10" required></textarea>') + '' + reportAITriageHTML() + '' + fieldHTML('category', 'Category', '<select id="category" name="category" required>' + options(D.CATEGORIES, '', 'Select a category…') + '</select>') + '<div class="field"><span class="field-label">Photo (optional)</span><label class="upload-box" for="photo">' + icon('photo', 26) + '<span>Tap to add a photo</span><small>JPG, PNG, WEBP or GIF · up to 2 MB</small><input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Add a photo" aria-describedby="photo-error"></label><p id="photo-error" class="error-text" role="alert"></p><div id="photo-preview" class="photo-preview" hidden></div></div><div class="form-footer"><p>Reports are public within this browser’s demo. Avoid adding personal information.</p><button class="btn btn-primary" type="submit">' + icon('plus', 18) + 'Submit report</button></div></form></div>';
+  }
+  function reportAITriageHTML() {
+    return '<section class="triage ai-triage" aria-label="AI category and duplicate helper"><div class="triage-heading"><strong>' + icon('sparkles', 20) + 'AI triage</strong><button class="btn btn-small" type="button" data-action="triage">' + icon('sparkles', 14) + 'Analyze with AI</button></div><p class="triage-note">Suggest a category and find related reports by meaning. Free, private AI running on your computer.</p><div id="triage-result" role="status" aria-live="polite"></div><div class="ai-helper-footer"><span>' + icon('lock', 12) + 'No API key. Your text stays here.</span><button type="button" class="text-button" data-action="basic-triage">Use basic helper</button></div></section>';
   }
   function fieldHTML(id, label, input) { return '<div class="field"><label for="' + id + '">' + label + '</label>' + input.replace('id="' + id + '"', 'id="' + id + '" aria-describedby="' + id + '-error"') + '<p class="error-text" id="' + id + '-error" role="alert"></p></div>'; }
   function renderLogin() {
@@ -153,10 +158,12 @@
     return ['feed', 'report', 'admin'].includes(candidate) ? candidate : 'feed';
   }
   function renderRoute(focus = false) {
+    reportAIRequest++;
+    detailAIRequest++;
     route = readRoute();
     document.querySelectorAll('[data-nav]').forEach(link => { link.classList.toggle('active', link.dataset.nav === route); if (link.dataset.nav === route) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current'); });
     if (route === 'feed') renderFeed();
-    else if (route === 'report') renderReport();
+    else if (route === 'report') { renderReport(); main.querySelector('.triage').outerHTML = reportAITriageHTML(); }
     else renderAdmin();
     if (focus) { main.focus({ preventScroll: true }); window.scrollTo(0, 0); }
   }
@@ -176,14 +183,21 @@
     const issue = state.issues.find(i => i.id === id);
     if (!issue) return;
     const dialog = document.getElementById('issue-dialog');
+    detailAIRequest++;
     dialog.innerHTML = '<div class="dialog-top"><div><p class="eyebrow">' + esc(issue.id) + ' · ' + esc(issue.category) + '</p><h2 id="dialog-title">' + esc(issue.title) + '</h2></div><button class="close-button" data-action="close-dialog" aria-label="Close issue details">' + icon('close') + '</button></div>' + badge(issue.status) + '<p class="dialog-description">' + esc(issue.description) + '</p><div class="dialog-facts"><span>' + icon('pin', 13) + ' ' + esc(issue.location) + '</span><span>' + icon('team', 13) + ' ' + esc(issue.team) + '</span><span>↑ ' + issue.votes + ' upvotes</span></div>' + (safePhoto(issue.photo) ? '<img class="issue-photo" src="' + issue.photo + '" alt="Photo of ' + esc(issue.title) + '">' : '') + '<section class="timeline"><h3>Issue history</h3>' + [...issue.history].reverse().map(h => '<div class="timeline-item"><strong>' + esc(h.status) + '</strong><p>' + esc(h.note) + '</p><time datetime="' + esc(h.at) + '">' + esc(new Date(h.at).toLocaleString()) + '</time></div>').join('') + '</section><div class="dialog-actions"><button class="btn btn-small" data-action="close-dialog">Close</button></div>';
-    dialog.showModal();
+    if (authenticated && route === 'admin') {
+      const section = document.createElement('section');
+      section.className = 'triage issue-ai';
+      section.innerHTML = '<div class="triage-heading"><strong>' + icon('sparkles', 20) + 'AI issue review</strong><button class="btn btn-small" type="button" data-action="analyze-issue" data-id="' + esc(issue.id) + '">' + icon('sparkles', 14) + 'Analyze issue</button></div><p class="triage-note">Suggest a category and find related reports with private, on-device AI.</p><div id="detail-ai-result" role="status" aria-live="polite"></div>';
+      dialog.querySelector('.timeline').before(section);
+    }
+    if (!dialog.open) dialog.showModal();
   }
   function reportData() {
     const form = document.getElementById('report-form');
     return Object.fromEntries(['title', 'location', 'description', 'category'].map(key => [key, form.elements[key].value.trim()]));
   }
-  function triage() {
+  function basicTriage() {
     const data = reportData();
     if (data.title.length < 3) { toast('Add an issue title first.'); document.getElementById('title').focus(); return; }
     const category = D.suggestCategory(data.title + ' ' + data.description);
@@ -193,7 +207,86 @@
     const duplicates = D.findDuplicates(state.issues, data.title, data.location);
     const result = document.getElementById('triage-result');
     result.className = 'triage-result';
-    result.innerHTML = '<p>Suggested category: <strong>' + esc(category) + '</strong>. ' + (duplicates.length ? 'These existing reports may be related:' : 'No close matches found. You can submit a new report.') + '</p>' + duplicates.map(i => '<button type="button" class="duplicate" data-detail="' + esc(i.id) + '">' + esc(i.title) + ' — ' + esc(i.location) + '</button>').join('');
+    result.innerHTML = '<span class="ai-mode-label basic-label">Basic keyword helper</span><p>Suggested category: <strong>' + esc(category) + '</strong>. ' + (duplicates.length ? 'These existing reports may be related:' : 'No keyword matches found. You can submit a new report.') + '</p>' + duplicates.map(i => '<button type="button" class="duplicate" data-detail="' + esc(i.id) + '">' + esc(i.title) + ' — ' + esc(i.location) + '</button>').join('');
+  }
+  function resetReportAI() {
+    reportAIRequest++;
+    const result = document.getElementById('triage-result');
+    if (result) { result.textContent = ''; result.className = ''; }
+    const button = main.querySelector('[data-action="triage"]');
+    if (button) { button.disabled = false; button.innerHTML = icon('sparkles', 14) + 'Analyze with AI'; button.removeAttribute('aria-busy'); }
+  }
+  function aiCandidates(excludeId) {
+    return state.issues.filter(i => i.id !== excludeId).map(i => ({ id: i.id, title: i.title, description: i.description, location: i.location, category: i.category, status: i.status }));
+  }
+  function renderAIProgress(target, message) {
+    target.className = 'triage-result';
+    target.innerHTML = '<div class="ai-loading"><span class="ai-spinner" aria-hidden="true"></span><span>' + esc(message || 'Analyzing report…') + '</span></div>';
+  }
+  function renderAIAnswer(target, answer, originalCategory, issueId) {
+    if (!answer || !D.CATEGORIES.includes(answer.category) || answer.source !== 'local-model') throw new Error('The AI result could not be read. Please try again.');
+    const related = (Array.isArray(answer.duplicates) ? answer.duplicates : []).map(match => state.issues.find(i => i.id === match.id)).filter(Boolean);
+    target.className = 'triage-result';
+    target.innerHTML = '<span class="ai-mode-label">' + icon('sparkles', 12) + 'On-device AI</span><div class="ai-category-result"><span class="muted">Suggested category</span><strong>' + esc(answer.category) + '</strong></div>' + (issueId ? answer.category === originalCategory ? '<p class="ai-small">This matches the current category.</p>' : '<button class="btn btn-small" type="button" data-action="apply-ai-category" data-id="' + esc(issueId) + '" data-ai-category="' + esc(answer.category) + '">' + icon('check', 14) + 'Apply category</button>' : '<p class="ai-small">Added to the category field. You can change it before submitting.</p>') + '<div class="ai-related"><strong>' + (related.length ? 'Possibly related reports' : 'No close semantic matches found') + '</strong>' + (related.length ? '<p class="ai-small">Compare the location and details before treating reports as duplicates.</p>' + related.map(i => '<button type="button" class="ai-related-card" data-detail="' + esc(i.id) + '"><span>' + esc(i.title) + '</span><small>' + icon('pin', 12) + esc(i.location) + ' · ' + esc(i.status) + '</small></button>').join('') : '<p class="ai-small">You can still browse the feed to check for another report.</p>') + '</div>';
+  }
+  async function analyzeReport() {
+    const data = reportData();
+    if (data.title.length < 3) { toast('Add an issue title first.'); document.getElementById('title').focus(); return; }
+    const request = ++reportAIRequest;
+    const result = document.getElementById('triage-result');
+    const button = main.querySelector('[data-action="triage"]');
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML = icon('sparkles', 14) + 'Analyzing…';
+    renderAIProgress(result, 'Loading the local AI model…');
+    const active = () => request === reportAIRequest && route === 'report' && result.isConnected;
+    try {
+      if (!window.CampusAI) throw new Error('AI could not load. Refresh the page and try again.');
+      const answer = await window.CampusAI.analyze({ ...data, issues: aiCandidates() }, message => { if (active()) renderAIProgress(result, message); });
+      if (!active()) return;
+      renderAIAnswer(result, answer, data.category);
+      document.getElementById('category').value = answer.category;
+      document.getElementById('category').removeAttribute('aria-invalid');
+      document.getElementById('category-error').textContent = '';
+    } catch (error) {
+      if (!active()) return;
+      result.className = 'triage-result ai-error';
+      result.innerHTML = '<strong>AI analysis is unavailable</strong><p>' + esc(error.message || 'Please try again.') + '</p><p class="ai-small">You can choose a category yourself or use the basic helper.</p>';
+    } finally {
+      if (active()) { button.disabled = false; button.removeAttribute('aria-busy'); button.innerHTML = icon('sparkles', 14) + 'Analyze with AI'; }
+    }
+  }
+  async function analyzeIssue(id) {
+    if (!authenticated || route !== 'admin') return;
+    const issue = state.issues.find(i => i.id === id);
+    const result = document.getElementById('detail-ai-result');
+    if (!issue || !result) return;
+    const button = document.querySelector('[data-action="analyze-issue"]');
+    const request = ++detailAIRequest;
+    const active = () => request === detailAIRequest && result.isConnected && document.getElementById('issue-dialog').open;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    renderAIProgress(result, 'Loading the local AI model…');
+    try {
+      if (!window.CampusAI) throw new Error('Refresh this page to load the AI helper.');
+      const answer = await window.CampusAI.analyze({ title: issue.title, description: issue.description, location: issue.location, issues: aiCandidates(id) }, message => { if (active()) renderAIProgress(result, message); });
+      if (active()) renderAIAnswer(result, answer, issue.category, id);
+    } catch (error) {
+      if (active()) { result.className = 'triage-result ai-error'; result.innerHTML = '<strong>AI analysis is unavailable</strong><p>' + esc(error.message || 'Please try again.') + '</p>'; }
+    } finally {
+      if (active()) { button.disabled = false; button.removeAttribute('aria-busy'); }
+    }
+  }
+  function applyAICategory(id, category) {
+    if (!authenticated || route !== 'admin' || !D.CATEGORIES.includes(category)) return;
+    const issue = state.issues.find(i => i.id === id);
+    if (!issue || issue.category === category) return;
+    const at = new Date().toISOString();
+    if (!commit(() => { issue.category = category; issue.updatedAt = at; issue.history.push({ status: issue.status, note: 'Category updated to ' + category + ' after admin review of an AI suggestion.', at }); })) return;
+    document.getElementById('issue-dialog').close();
+    detailAIRequest++;
+    renderAdmin();
+    toast('Category updated after your review.');
   }
   function showPhotoError(message) { document.getElementById('photo-error').textContent = message; }
   function loadPhoto(file) {
@@ -295,9 +388,12 @@
     }
     const action = button.dataset.action;
     if (action === 'clear-filters') { filters = defaultFilters(); route === 'admin' ? renderAdmin() : renderFeed(); }
-    if (action === 'triage') triage();
+    if (action === 'triage') analyzeReport();
+    if (action === 'basic-triage') { resetReportAI(); basicTriage(); }
+    if (action === 'analyze-issue') analyzeIssue(button.dataset.id);
+    if (action === 'apply-ai-category') applyAICategory(button.dataset.id, button.dataset.aiCategory);
     if (action === 'remove-photo') { photo = null; photoLoading = false; photoVersion++; document.getElementById('photo').value = ''; document.getElementById('photo-preview').hidden = true; showPhotoError(''); }
-    if (action === 'close-dialog') document.getElementById('issue-dialog').close();
+    if (action === 'close-dialog') { detailAIRequest++; document.getElementById('issue-dialog').close(); }
     if (action === 'export') exportCSV();
     if (action === 'logout') { authenticated = false; try { sessionStorage.removeItem(CONFIG.sessionKey); } catch (_) { /* No persistent session. */ } renderLogin(); toast('Signed out of the demo dashboard.'); }
     if (action === 'reset') confirmReset();
@@ -311,7 +407,7 @@
     if (event.target.closest('#report-form')) {
       const error = document.getElementById(event.target.id + '-error');
       if (error) { error.textContent = ''; event.target.removeAttribute('aria-invalid'); }
-      if (['title', 'description', 'location'].includes(event.target.id)) { document.getElementById('triage-result').textContent = ''; document.getElementById('triage-result').className = ''; }
+      if (['title', 'description', 'location', 'category'].includes(event.target.id)) resetReportAI();
     }
   });
   document.addEventListener('change', event => {
@@ -350,3 +446,4 @@
   });
   renderRoute();
 })();
+
